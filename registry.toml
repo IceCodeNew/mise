@@ -636,6 +636,16 @@ backends = ["github:ccache/ccache", "asdf:asdf-community/asdf-ccache"]
 description = "ccache – a fast compiler cache"
 test = ["ccache --version", "ccache version {{version}}"]
 
+[tools.certinfo]
+backends = [
+  "aqua:pete911/certinfo",
+  "ubi:pete911/certinfo",
+  "github:pete911/certinfo",
+  "go:github.com/pete911/certinfo",
+]
+description = "print x509 certificate info; handles chains, multiple files and TCP addresses."
+test = ["certinfo --version | sed 's/^v//'", "{{version}}"]
+
 [tools.certstrap]
 backends = ["github:square/certstrap", "asdf:carnei-ro/asdf-certstrap"]
 description = "Tools to bootstrap CAs, certificate requests, and signed certificates"
@@ -1129,6 +1139,13 @@ description = "The home of the CUE language! Validate and define text-based and 
 backends = ["aqua:rs/curlie"]
 description = "The power of curl, the ease of use of httpie"
 test = ["curlie version", "curlie {{version}}"]
+
+[tools.cve-bin-tool]
+backends = [
+  "pipx:cve-bin-tool[pipx_args=--include-deps,uvx_args=--with gsutil]",
+]
+description = "The CVE Binary Tool helps you determine if your system includes known vulnerabilities"
+test = ["cve-bin-tool --version", "{{version}}"]
 
 [tools.cyclonedx]
 backends = ["aqua:CycloneDX/cyclonedx-cli", "asdf:xeedio/asdf-cyclonedx"]
