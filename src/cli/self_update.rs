@@ -112,7 +112,7 @@ impl SelfUpdate {
         #[cfg(not(windows))]
         let bin_path_in_archive = "mise/bin/mise";
         update
-            .repo_owner("jdx")
+            .repo_owner("IceCodeNew")
             .repo_name("mise")
             .bin_name("mise")
             .current_version(cargo_crate_version!())
