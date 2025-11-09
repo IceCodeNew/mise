@@ -1,0 +1,4 @@
+{
+  "enabledManagers": ["github-actions", "dockerfile"],
+  "forkProcessing": "enabled"
+}
