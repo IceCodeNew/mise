@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/rust:1@sha256:89214ba709cd952884c7355cf9b22e18d2cc080c50138440f4207a50a4bcbe0a
+FROM mcr.microsoft.com/devcontainers/rust:1@sha256:63231d1d4293573ace51ae403cc6c4a2b04e332e668cd4aa132b563496b99ebd
 LABEL maintainer="jdx"
 
 ENV GOPROXY=direct
