@@ -4,13 +4,13 @@ permissions: {}
 on:
   push:
     branches:
-    - 'master'
+      - "master"
     paths:
-    - '.github/workflows/mise.yml'
-    - 'mise/Dockerfile'
+      - ".github/workflows/mise.yml"
+      - "mise/Dockerfile"
   pull_request: {}
   schedule:
-  - cron: "0 5 * * *"
+    - cron: "0 5 * * *"
   workflow_dispatch:
 
 env:
@@ -40,27 +40,26 @@ jobs:
         id: update
         shell: bash
         run: |
-            cd ./src/mise/ || exit 1
-            git remote remove patch || true
-            set -euxo pipefail
-            git remote add patch https://github.com/IceCodeNew/mise.git
-            git fetch --all --depth 100 --prune --prune-tags
+          cd ./src/mise/ || exit 1
+          git remote remove patch || true
+          set -euxo pipefail
+          git remote add patch https://github.com/IceCodeNew/mise.git
+          git fetch --all --depth 100 --prune --prune-tags
 
-            git rm -rf .github/
-            git config --local user.name "github-actions[bot]"
-            git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add -A && git commit -m 'cleanhouse: reduce the chance of rebase conflict'
+          git rm -rf .github/
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -m 'cleanhouse: reduce the chance of rebase conflict'
 
-            git checkout -b master patch/master
-            git rebase main
+          git checkout -b master patch/master
+          git rebase main
 
-            echo "timestamp=$(date)" >> "$GITHUB_OUTPUT"
+          echo "timestamp=$(date)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: src/*/.git/
           key: cached-source-codes-${{ github.run_id }}
-      -
-        name: Upload digest
+      - name: Upload digest
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: source-code
@@ -82,8 +81,7 @@ jobs:
           - linux/amd64
           - linux/arm64
     steps:
-      -
-        name: Download digests
+      - name: Download digests
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: source-code
@@ -126,8 +124,7 @@ jobs:
           cd "./target/$(arch)-unknown-linux-musl/serious/" || exit 1
           echo "BIN_MISE=$(pwd)" >> "$GITHUB_ENV"
           sudo install -pvD "./mise" "/usr/local/bin/mise-${_TARGETARCH##linux/}"
-      -
-        name: Release
+      - name: Release
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
         if: github.event_name == 'push' && github.event.repository.default_branch == github.ref_name
         with:
@@ -137,17 +134,14 @@ jobs:
           tag_name: latest
           files: ${{ matrix.platform == 'linux/arm64' && '/usr/local/bin/mise-arm64' || '/usr/local/bin/mise-amd64' }}
 
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-      -
-        name: Login to Docker Hub
+      - name: Login to Docker Hub
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      -
-        name: Build and push by digest
+      - name: Build and push by digest
         id: build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
@@ -161,8 +155,7 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
           outputs: type=image,compression=estargz,force-compression=true,oci-mediatypes=true,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true
-      -
-        name: Export digest
+      - name: Export digest
         if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
         env:
           digest: ${{ steps.build.outputs.digest }}
@@ -171,8 +164,7 @@ jobs:
           mkdir -p /tmp/mise-digests/
           touch "/tmp/mise-digests/${digest#sha256:}"
           echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
-      -
-        name: Upload digest
+      - name: Upload digest
         if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
@@ -187,24 +179,20 @@ jobs:
     needs:
       - build-mise
     steps:
-      -
-        name: Download digests
+      - name: Download digests
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           path: /tmp/mise-digests/
           pattern: mise-digests-*
           merge-multiple: true
-      -
-        name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-      -
-        name: Login to Docker Hub
+      - name: Login to Docker Hub
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      -
-        name: Create manifest list and push
+      - name: Create manifest list and push
         working-directory: /tmp/mise-digests/
         env:
           REGISTRY_IMAGE: ${{ env.REGISTRY_IMAGE }}
@@ -212,16 +200,14 @@ jobs:
           # shellcheck disable=SC2046
           docker buildx imagetools create --tag "${REGISTRY_IMAGE}:latest" \
               $(printf "${REGISTRY_IMAGE}@sha256:%s " *)
-      -
-        name: Inspect image
+      - name: Inspect image
         env:
           REGISTRY_IMAGE: ${{ env.REGISTRY_IMAGE }}
         run: |
           docker buildx imagetools inspect "${REGISTRY_IMAGE}:latest" \
               | grep -Po '[^ \r\n\t\v]+@sha256:[a-z0-9]+' | xargs -r -t -n 1 docker buildx imagetools inspect --raw
-      -
-        name: Run Trivy vulnerability scanner
+      - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
           image-ref: "${{ env.REGISTRY_IMAGE }}:latest"
-          format: 'table'
+          format: "table"
