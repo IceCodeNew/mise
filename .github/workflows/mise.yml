@@ -101,8 +101,9 @@ jobs:
           rustup toolchain install \
               --target "$(arch)-unknown-linux-musl" \
               stable
-      - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
+      - uses: Swatinem/rust-cache@972b315a8225e8594dddc2b92e6333d1d1d3059c
         with:
+          add-job-id-key: true
           cache-all-crates: true
           save-if: ${{ github.ref == 'refs/heads/master' }}
           workspaces: "./src/mise/ -> target"
@@ -205,8 +206,9 @@ jobs:
       # before the plugin, as the cache uses the current rustc version as its cache key
       - shell: bash
         run: rustup toolchain install stable
-      - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
+      - uses: Swatinem/rust-cache@972b315a8225e8594dddc2b92e6333d1d1d3059c
         with:
+          add-job-id-key: true
           cache-all-crates: true
           save-if: ${{ github.ref == 'refs/heads/master' }}
           workspaces: "./src/mise/ -> target"
