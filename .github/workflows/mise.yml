@@ -113,6 +113,9 @@ jobs:
           _TARGETARCH: ${{ matrix.platform }}
         shell: bash
         run: |
+          if [[ "${_TARGETARCH}" == "linux/arm64" ]]; then
+              NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          fi
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           brew install cargo-sweep
           cd ./src/mise/ || exit 1
