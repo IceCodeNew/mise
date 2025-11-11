@@ -103,7 +103,7 @@ jobs:
               stable
       - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
         with:
-          add-job-id-key: "false"
+          cache-all-crates: true
           save-if: ${{ github.ref == 'refs/heads/master' }}
           workspaces: "./src/mise/ -> target"
 
@@ -112,15 +112,20 @@ jobs:
           _TARGETARCH: ${{ matrix.platform }}
         shell: bash
         run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install cargo-sweep
           cd ./src/mise/ || exit 1
+          cargo sweep --stamp
+
           export RUSTFLAGS="${RUSTFLAGS} -C relocation-model=pie -C prefer-dynamic=off"
           [[ $(arch) = "x86_64" ]] && export RUSTFLAGS="${RUSTFLAGS} -C target-cpu=x86-64-v2"
-
           cargo install --profile=serious \
               --target "$(arch)-unknown-linux-musl" --no-default-features \
               --features "rustls-native-roots,self_update,vfox/vendored-lua,openssl/vendored" \
               --path .
 
+          cargo sweep --dry-run --file
+          cargo sweep --file
           cd "./target/$(arch)-unknown-linux-musl/serious/" || exit 1
           echo "BIN_MISE=$(pwd)" >> "$GITHUB_ENV"
           sudo install -pvD "./mise" "/usr/local/bin/mise-${_TARGETARCH//\//-}"
@@ -199,20 +204,25 @@ jobs:
         run: rustup toolchain install stable
       - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
         with:
-          add-job-id-key: "false"
+          cache-all-crates: true
           save-if: ${{ github.ref == 'refs/heads/master' }}
           workspaces: "./src/mise/ -> target"
 
       - name: Build mise
         shell: bash
         run: |
+          brew install cargo-sweep
           cd ./src/mise/ || exit 1
-          export RUSTFLAGS="${RUSTFLAGS} -C relocation-model=pie -C prefer-dynamic=off"
+          cargo sweep --stamp
 
+          export RUSTFLAGS="${RUSTFLAGS} -C relocation-model=pie -C prefer-dynamic=off"
           cargo install --profile=serious \
               --no-default-features \
               --features "rustls-native-roots,self_update,vfox/vendored-lua,openssl/vendored" \
               --path .
+
+          cargo sweep --dry-run --file
+          cargo sweep --file
           sudo cp -f './target/serious/mise' '/usr/local/bin/mise-darwin-arm64'
       - name: Release
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
