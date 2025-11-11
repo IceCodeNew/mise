@@ -4,73 +4,17 @@ permissions: {}
 on:
   push:
     branches:
-      - "master"
-    paths:
-      - ".github/workflows/mise.yml"
-      - "mise/Dockerfile"
-  pull_request: {}
-  schedule:
-    - cron: "0 5 * * *"
+      - patched
+  pull_request:
   workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
+  PATCH_REF: "patched"
   REGISTRY_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/mise
 
 jobs:
-  git:
-    name: git
-    runs-on: ubuntu-slim
-    outputs:
-      timestamp: ${{ steps.update.outputs.timestamp }}
-    steps:
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: src/*/.git/
-          key: cached-source-codes-${{ github.run_id }}
-          restore-keys: |
-            cached-source-codes-
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          fetch-depth: 100
-          path: src/mise
-          persist-credentials: false
-          repository: jdx/mise
-      - name: update
-        id: update
-        shell: bash
-        run: |
-          cd ./src/mise/ || exit 1
-          git remote remove patch || true
-          set -euxo pipefail
-          git remote add patch https://github.com/IceCodeNew/mise.git
-          git fetch --all --depth 100 --prune --prune-tags
-
-          git rm -rf .github/
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A && git commit -m 'cleanhouse: reduce the chance of rebase conflict'
-
-          git checkout -b master patch/master
-          git rebase main
-
-          echo "timestamp=$(date)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: src/*/.git/
-          key: cached-source-codes-${{ github.run_id }}
-      - name: Upload digest
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: source-code
-          path: src/
-          if-no-files-found: error
-          overwrite: true
-          retention-days: 1
-
   build-mise:
-    needs:
-      - git
     permissions:
       contents: write
     name: Build mise
@@ -81,11 +25,16 @@ jobs:
           - linux/amd64
           - linux/arm64
     steps:
-      - name: Download digests
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          name: source-code
-          path: src/
+          path: src/*/.git/
+          key: cached-source-codes
+          restore-keys: |
+            cached-source-codes
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          path: src/mise
+          persist-credentials: false
       - uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
 
       # selecting a toolchain either by action or manual `rustup` calls should happen
@@ -105,7 +54,7 @@ jobs:
         with:
           add-job-id-key: true
           cache-all-crates: true
-          save-if: ${{ github.ref == 'refs/heads/master' }}
+          save-if: (github.ref == 'refs/heads/${{ env.PATCH_REF }}')
           workspaces: "./src/mise/ -> target"
 
       - name: Build mise
@@ -113,7 +62,9 @@ jobs:
           _TARGETARCH: ${{ matrix.platform }}
         shell: bash
         run: |
+          export platform='linux-x64'
           if [[ "${_TARGETARCH}" == "linux/arm64" ]]; then
+              export platform='linux-arm64'
               NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           fi
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
@@ -121,29 +72,40 @@ jobs:
           cd ./src/mise/ || exit 1
           cargo sweep --stamp
 
+          git remote remove upstream || true
+          git remote add upstream https://github.com/jdx/mise.git
+          git fetch upstream --depth 100 --prune --prune-tags
+          export TAG_MISE=$(
+              git tag | sort --version-sort --reverse | head -n 1
+          )
+
           export RUSTFLAGS="${RUSTFLAGS} -C relocation-model=pie -C prefer-dynamic=off"
           [[ $(arch) = "x86_64" ]] && export RUSTFLAGS="${RUSTFLAGS} -C target-cpu=x86-64-v2"
-          cargo install --profile=serious \
+          cargo install --locked --profile=serious \
               --target "$(arch)-unknown-linux-musl" --no-default-features \
               --features "rustls-native-roots,self_update,vfox/vendored-lua,openssl/vendored" \
               --path .
 
           cargo sweep --dry-run --file
           cargo sweep --file
-          cd "./target/$(arch)-unknown-linux-musl/serious/" || exit 1
-          echo "BIN_MISE=$(pwd)" >> "$GITHUB_ENV"
-          sudo install -pvD "./mise" "/usr/local/bin/mise-${_TARGETARCH//\//-}"
+          pushd "./target/$(arch)-unknown-linux-musl/serious/" || exit 1
+          export BIN_MISE=$(pwd)
+          popd
+          tar -czf "mise-${TAG_MISE}-${platform}-musl.tar.gz" -C "${BIN_MISE}" ./mise
+
+          echo "BIN_MISE=${BIN_MISE}" >> "$GITHUB_ENV"
+          echo "TAG_MISE=${TAG_MISE}" >> "$GITHUB_ENV"
+          echo "platform=${platform}"  >> "$GITHUB_ENV"
+          echo "TIMESTAMP=$(date +%s)" >> "$GITHUB_ENV"
       - name: Release
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
-        if: github.event_name == 'push' && github.event.repository.default_branch == github.ref_name
+        if: github.event_name == 'push' && github.ref_name == ${{ env.PATCH_REF }}
         with:
           fail_on_unmatched_files: true
           generate_release_notes: false
           make_latest: true
-          tag_name: latest
-          files: >
-            ${{ (matrix.platform == 'linux/arm64' && '/usr/local/bin/mise-linux-arm64') ||
-                '/usr/local/bin/mise-linux-amd64' }}
+          tag_name: ${{ env.TAG_MISE }}
+          files: "./src/mise/mise-${{ env.TAG_MISE }}-${{ env.platform }}-musl.tar.gz"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
@@ -159,7 +121,7 @@ jobs:
           build-contexts: |
             bin_mise=${{ env.BIN_MISE }}
           build-args: |
-            CACHE_BUST=${{ github.run_id }}-${{ needs.git.outputs.timestamp }}
+            CACHE_BUST=${{ github.run_id }}-${{ env.TIMESTAMP }}
           context: "{{defaultContext}}:mise"
           push: ${{ github.event_name != 'pull_request' }}
           platforms: ${{ matrix.platform }}
@@ -167,9 +129,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
           outputs: type=image,compression=estargz,force-compression=true,oci-mediatypes=true,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true
       - name: Export digest
-        if: |
-          github.ref == 'refs/heads/master' &&
-          github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request'
         env:
           digest: ${{ steps.build.outputs.digest }}
           platform: ${{ matrix.platform }}
@@ -178,9 +138,7 @@ jobs:
           touch "/tmp/mise-digests/${digest#sha256:}"
           echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
       - name: Upload digest
-        if: |
-          github.ref == 'refs/heads/master' &&
-          github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: mise-digests-${{ env.PLATFORM_PAIR }}
@@ -189,18 +147,21 @@ jobs:
           retention-days: 1
 
   build-mise-macos:
-    needs:
-      - git
     permissions:
       contents: write
     name: Build mise for macOS
     runs-on: macos-15
     steps:
-      - name: Download digests
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          name: source-code
-          path: src/
+          path: src/*/.git/
+          key: cached-source-codes
+          restore-keys: |
+            cached-source-codes
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          path: src/mise
+          persist-credentials: false
 
       # selecting a toolchain either by action or manual `rustup` calls should happen
       # before the plugin, as the cache uses the current rustc version as its cache key
@@ -210,7 +171,7 @@ jobs:
         with:
           add-job-id-key: true
           cache-all-crates: true
-          save-if: ${{ github.ref == 'refs/heads/master' }}
+          save-if: (github.ref == 'refs/heads/${{ env.PATCH_REF }}')
           workspaces: "./src/mise/ -> target"
 
       - name: Build mise
@@ -220,28 +181,37 @@ jobs:
           cd ./src/mise/ || exit 1
           cargo sweep --stamp
 
+          git remote remove upstream || true
+          git remote add upstream https://github.com/jdx/mise.git
+          git fetch upstream --depth 100 --prune --prune-tags
+          export TAG_MISE=$(
+              git tag | sort --version-sort --reverse | head -n 1
+          )
+
           export RUSTFLAGS="${RUSTFLAGS} -C relocation-model=pie -C prefer-dynamic=off"
-          cargo install --profile=serious \
+          cargo install --locked --profile=serious \
               --no-default-features \
               --features "rustls-native-roots,self_update,vfox/vendored-lua,openssl/vendored" \
               --path .
 
           cargo sweep --dry-run --file
           cargo sweep --file
-          sudo cp -f './target/serious/mise' '/usr/local/bin/mise-darwin-arm64'
+          tar -czf "mise-${TAG_MISE}-macos-arm64.tar.gz" -C ./target/serious/ ./mise
+
+          echo "TAG_MISE=${TAG_MISE}" >> "$GITHUB_ENV"
       - name: Release
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
-        if: github.event_name == 'push' && github.event.repository.default_branch == github.ref_name
+        if: github.event_name == 'push' && github.ref_name == ${{ env.PATCH_REF }}
         with:
           fail_on_unmatched_files: true
           generate_release_notes: false
           make_latest: true
-          tag_name: latest
-          files: '/usr/local/bin/mise-darwin-arm64'
+          tag_name: ${{ env.TAG_MISE }}
+          files: "./src/mise/mise-${{ env.TAG_MISE }}-macos-arm64.tar.gz"
 
   mise-multiarch:
     runs-on: ubuntu-24.04
-    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request'
     needs:
       - build-mise
     steps:
