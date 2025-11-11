@@ -1,0 +1,71 @@
+name: fetch upstream
+permissions: {}
+
+on:
+  push:
+    branches:
+      - "master"
+    paths:
+      - ".github/workflows/fetch-upstream.yml"
+  schedule:
+    - cron: "0 */10 * * *"
+  workflow_dispatch:
+
+env:
+  PATCH_REF: "patched"
+
+jobs:
+  git:
+    if: ${{ github.event.pusher.username != 'github-actions[bot]' }}
+    name: git
+    permissions:
+      contents: write
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: src/*/.git/
+          key: cached-source-codes
+          restore-keys: |
+            cached-source-codes
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          path: src/mise
+          persist-credentials: true
+          ref: master
+          token: "${{ secrets.UPDATE_WORKFLOW_TOKEN }}"
+      - name: update
+        env:
+          PATCH_REF: ${{ env.PATCH_REF }}
+        id: update
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd ./src/mise/
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote remove upstream || true
+          git remote add upstream https://github.com/jdx/mise.git
+          git fetch --all --depth 100 --prune
+          if git pull --rebase upstream main; then
+              git push -f origin "HEAD:${PATCH_REF}"
+              exit 0
+          fi
+
+          git rebase --abort
+          git checkout -B main upstream/main
+          git rm -rf .github/
+          git add -A && git commit -m 'cleanhouse: reduce the chance of rebase conflict'
+
+          git checkout -B master origin/master
+          git rebase main
+          git push -f origin "HEAD:master"
+          git push -f origin "HEAD:${PATCH_REF}"
+
+          git reflog expire --expire-unreachable=all \
+              && git gc --aggressive --prune --no-quiet
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: src/*/.git/
+          key: cached-source-codes
