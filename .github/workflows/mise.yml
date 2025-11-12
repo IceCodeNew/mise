@@ -60,7 +60,7 @@ jobs:
           cargo zigbuild --bins --profile=serious \
               --target "aarch64-apple-darwin" \
               --no-default-features \
-              --features "rustls-native-roots,self_update,vfox/vendored-lua,openssl/vendored"
+              --features "rustls-native-roots,self_update,vfox/vendored-lua"
 
           cargo sweep --dry-run --file
           cargo sweep --file
