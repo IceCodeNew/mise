@@ -61,10 +61,11 @@ jobs:
           cd ./src/mise/ || exit 1
           cargo sweep --stamp
 
-          export CFLAGS="${CFLAGS} -I /opt/MacOSX15.5.sdk/usr/include"
-          export RUSTFLAGS="${RUSTFLAGS} -L /opt/MacOSX15.5.sdk/usr/lib"
-          export SDKROOT=/
-          cargo zigbuild --bins --verbose --profile=serious \
+          export SDKROOT=/opt/MacOSX15.5.sdk
+          export CFLAGS="--sysroot=${SDKROOT} -mcpu=apple_m1 -F /System/Library/Frameworks -isystem /usr/include -I ${SDKROOT}/usr/include"
+          export RUSTFLAGS="-L /usr/lib"
+          sudo ln -sf /home "${SDKROOT}/home"
+          cargo zigbuild --bins --verbose \
               --target "aarch64-apple-darwin" \
               --no-default-features \
               --features "rustls-native-roots,self_update,vfox/vendored-lua"
