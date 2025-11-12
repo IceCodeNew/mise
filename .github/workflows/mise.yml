@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: write
     name: Build mise for macOS
-    runs-on: macos-15
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -34,7 +34,11 @@ jobs:
       # selecting a toolchain either by action or manual `rustup` calls should happen
       # before the plugin, as the cache uses the current rustc version as its cache key
       - shell: bash
-        run: rustup toolchain install stable
+        run: |
+          rustup target add "aarch64-apple-darwin"
+          curl -fsSL -- \
+              'https://github.com/joseluisq/macosx-sdks/releases/download/15.5/MacOSX15.5.sdk.tar.xz' \
+              | sudo tar -xJf- -C /opt/
       - uses: Swatinem/rust-cache@972b315a8225e8594dddc2b92e6333d1d1d3059c
         with:
           add-job-id-key: true
@@ -45,15 +49,18 @@ jobs:
       - name: Build mise
         shell: bash
         run: |
-          brew install cargo-sweep
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install \
+              cargo-sweep \
+              cargo-zigbuild zig
           cd ./src/mise/ || exit 1
           cargo sweep --stamp
 
-          export RUSTFLAGS="${RUSTFLAGS} -C relocation-model=pie -C prefer-dynamic=off"
-          cargo install --profile=serious \
+          export SDKROOT=/opt/MacOSX15.5.sdk
+          cargo zigbuild --bins --profile=serious \
+              --target "aarch64-apple-darwin" \
               --no-default-features \
-              --features "rustls-native-roots,self_update,vfox/vendored-lua,openssl/vendored" \
-              --path .
+              --features "rustls-native-roots,self_update,vfox/vendored-lua,openssl/vendored"
 
           cargo sweep --dry-run --file
           cargo sweep --file
