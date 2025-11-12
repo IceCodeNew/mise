@@ -42,6 +42,7 @@ jobs:
           curl -fsSLROJ -- \
               'https://github.com/joseluisq/macosx-sdks/releases/download/15.5/MacOSX15.5.sdk.tar.xz'
           sudo tar --strip-components=1 --overwrite -C / -xJf MacOSX15.5.sdk.tar.xz
+          sudo tar -C /opt -xJf MacOSX15.5.sdk.tar.xz
           rm -f MacOSX15.5.sdk.tar.xz
       - uses: Swatinem/rust-cache@972b315a8225e8594dddc2b92e6333d1d1d3059c
         with:
@@ -60,8 +61,10 @@ jobs:
           cd ./src/mise/ || exit 1
           cargo sweep --stamp
 
+          export CFLAGS="${CFLAGS} -I /opt/MacOSX15.5.sdk/usr/include"
+          export RUSTFLAGS="${RUSTFLAGS} -L /opt/MacOSX15.5.sdk/usr/lib"
           export SDKROOT=/
-          SDKROOT="${SDKROOT}" cargo zigbuild --bins --verbose --profile=serious \
+          cargo zigbuild --bins --verbose --profile=serious \
               --target "aarch64-apple-darwin" \
               --no-default-features \
               --features "rustls-native-roots,self_update,vfox/vendored-lua"
