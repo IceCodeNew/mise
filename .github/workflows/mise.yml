@@ -61,6 +61,7 @@ jobs:
           _TARGETARCH: ${{ matrix.platform }}
         shell: bash
         run: |
+          set -eo pipefail
           export platform='linux-x64'
           if [[ "${_TARGETARCH}" == "linux/arm64" ]]; then
               export platform='linux-arm64'
@@ -68,7 +69,7 @@ jobs:
           fi
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           brew install cargo-sweep
-          cd ./src/mise/ || exit 1
+          cd ./src/mise/
           cargo sweep --stamp
 
           git remote remove upstream || true
@@ -90,7 +91,13 @@ jobs:
           pushd "./target/$(arch)-unknown-linux-musl/serious/" || exit 1
           export BIN_MISE=$(pwd)
           popd
-          tar -czf "mise-${TAG_MISE}-${platform}-musl.tar.gz" -C "${BIN_MISE}" ./mise
+          rm -rf ./mise/
+          tarball_name="mise-${TAG_MISE}-${platform}-musl.tar.gz"
+          curl -fsSL -- \
+              "https://github.com/jdx/mise/releases/download/${TAG_MISE}/${tarball_name}" \
+              | tar -xzf-
+          cp -f "${BIN_MISE}/mise" ./mise/bin/mise
+          tar -czf "${tarball_name}" ./mise/
 
           echo "BIN_MISE=${BIN_MISE}" >> "$GITHUB_ENV"
           echo "TAG_MISE=${TAG_MISE}" >> "$GITHUB_ENV"
@@ -175,8 +182,9 @@ jobs:
       - name: Build mise
         shell: bash
         run: |
+          set -eo pipefail
           brew install cargo-sweep
-          cd ./src/mise/ || exit 1
+          cd ./src/mise/
           cargo sweep --stamp
 
           git remote remove upstream || true
@@ -194,7 +202,13 @@ jobs:
 
           cargo sweep --dry-run --file
           cargo sweep --file
-          tar -czf "mise-${TAG_MISE}-macos-arm64.tar.gz" -C ./target/serious/ ./mise
+          rm -rf ./mise/
+          tarball_name="mise-${TAG_MISE}-macos-arm64.tar.gz"
+          curl -fsSL -- \
+              "https://github.com/jdx/mise/releases/download/${TAG_MISE}/${tarball_name}" \
+              | tar -xzf-
+          cp -f ./target/serious/mise ./mise/bin/mise
+          tar -czf "${tarball_name}" ./mise/
 
           echo "TAG_MISE=${TAG_MISE}" >> "$GITHUB_ENV"
       - name: Release
