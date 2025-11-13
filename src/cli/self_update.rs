@@ -108,9 +108,9 @@ impl SelfUpdate {
             update.auth_token(token);
         }
         #[cfg(windows)]
-        let bin_path_in_archive = "mise/bin/mise.exe";
+        let bin_path_in_archive = "./mise.exe";
         #[cfg(not(windows))]
-        let bin_path_in_archive = "mise/bin/mise";
+        let bin_path_in_archive = "./mise";
         update
             .repo_owner("IceCodeNew")
             .repo_name("mise")
@@ -138,7 +138,6 @@ impl SelfUpdate {
         #[cfg(not(windows))]
         let target = format!("mise-{v}-{target}.tar.gz");
         let status = update
-            .verifying_keys([*include_bytes!("../../zipsign.pub")])
             .show_download_progress(true)
             .target(&target)
             .no_confirm(settings.is_ok_and(|s| s.yes) || self.yes)
