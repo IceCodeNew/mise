@@ -151,7 +151,6 @@ impl SelfUpdate {
         #[cfg(not(windows))]
         let target = format!("mise-{v}-{target}.tar.gz");
         let status = update
-            .verifying_keys([*include_bytes!("../../zipsign.pub")])
             .show_download_progress(true)
             .target(&target)
             .no_confirm(settings.is_ok_and(|s| s.yes) || self.yes)
