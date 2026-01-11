@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
 
-FROM mirror.gcr.io/library/alpine:3.22 AS bin-check
+FROM mirror.gcr.io/library/alpine:3.23 AS bin-check
 ARG CACHE_BUST
 COPY --link --from=bin_mise ./mise /emptydir/
 RUN /emptydir/mise --version
 
 
-FROM mirror.gcr.io/library/alpine:3.22 AS final
+FROM mirror.gcr.io/library/alpine:3.23 AS final
 LABEL maintainer="IceCodeNew"
 RUN <<EOT
 set -euxo pipefail
