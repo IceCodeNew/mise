@@ -20,7 +20,7 @@ jobs:
       contents: write
     runs-on: ubuntu-slim
     steps:
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache/restore@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
         with:
           path: src/*/.git/
           key: cached-source-codes
@@ -60,7 +60,7 @@ jobs:
           git push -f origin "HEAD:${PATCH_REF}"
           git reflog expire --expire-unreachable=all \
               && git gc --aggressive --prune --no-quiet
-      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache/save@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
         with:
           path: src/*/.git/
           key: cached-source-codes
